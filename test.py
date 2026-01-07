@@ -1,4 +1,9 @@
 # corrected_parking.py
+import os
+os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
+    "rtsp_transport;tcp|fflags;discardcorrupt|flags;low_delay"
+)
+
 
 import cv2
 import numpy as np
@@ -8,6 +13,7 @@ import threading
 from collections import deque
 
 from shared_state import slot_state  # 🔑 shared state (FIXED)
+
 
 # =========================
 # CONFIG
@@ -67,16 +73,29 @@ def main(video_path="resources/AED Parking Video.mp4"):
     global slot_history, api_started
 
     model = YOLO("yolov8s.pt")
-    cap = cv2.VideoCapture(video_path)
+    cap = cv2.VideoCapture(
+        "rtsp://127.0.0.1:8554/parking",
+        cv2.CAP_FFMPEG
+    )
+    
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
     if not cap.isOpened():
         print("Error: Unable to open video source")
         return
 
     # ---- SLOT DEFINITION PHASE ----
-    ret, first_frame = cap.read()
-    if not ret:
-        print("Error reading first frame")
+    first_frame = None
+    for _ in range(50):  # ~2 seconds max
+        ret, frame = cap.read()
+        if ret:
+            first_frame = frame
+            break
+        time.sleep(0.05)
+
+    if first_frame is None:
+        print("Error: Unable to read initial frame from RTSP stream")
+        cap.release()
         return
 
     first_frame = cv2.resize(first_frame, TARGET_DIM)
@@ -129,9 +148,12 @@ def main(video_path="resources/AED Parking Video.mp4"):
 
     # ---- INFERENCE LOOP ----
     while True:
+        cap.grab()
+            
         ret, frame = cap.read()
-        if not ret:
-            break
+        if not ret or frame is None or frame.size == 0:
+            time.sleep(0.01)
+            continue
 
         frame = cv2.resize(frame, TARGET_DIM)
         now = time.time()
@@ -139,6 +161,9 @@ def main(video_path="resources/AED Parking Video.mp4"):
         if now - last_refresh_ts >= OCCUPANCY_REFRESH_INTERVAL:
             last_refresh_ts = now
 
+            if frame is None or frame.size == 0:
+                continue
+            
             results = model(frame, classes=[2, 7], conf=0.6, verbose=False)[0]
             slot_status = [False] * len(polygons)
 
@@ -173,7 +198,7 @@ def main(video_path="resources/AED Parking Video.mp4"):
             cv2.polylines(display, [poly], True, color, 3)
 
         cv2.imshow("Parking Detection", display)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        if cv2.waitKey(30) & 0xFF == ord('q'):
             break
 
     cap.release()
