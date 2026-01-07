@@ -1,11 +1,10 @@
-# parking_api.py
 
 from flask import Flask, jsonify
 from flask_cors import CORS
 from shared_state import slot_state
 
 app = Flask(__name__)
-CORS(app)  # ✅ THIS IS THE FIX
+CORS(app)  
 
 @app.route("/api/slots", methods=["GET"])
 def get_slots():

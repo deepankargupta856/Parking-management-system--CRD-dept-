@@ -1,4 +1,3 @@
-# corrected_parking.py
 import cv2
 import numpy as np
 from ultralytics import YOLO
@@ -12,13 +11,12 @@ polygons = []
 
 slot_state = {
     "timestamp": None,
-    "slots": []  # list of {id, occupied}
+    "slots": []  
 }
 
-# a small helper queue to maintain last N statuses for smoothing
-SMOOTH_WINDOW = 3  # majority of last 3 checks determine occupancy
+SMOOTH_WINDOW = 3 
 
-slot_history = []  # list of deque objects with length SMOOTH_WINDOW
+slot_history = []  
 
 def mouse_callback(event, x, y, flags, param):
     global current_polygon, polygons
@@ -47,21 +45,18 @@ def point_in_poly(point, poly):
     return cv2.pointPolygonTest(poly, point, False) >= 0
 
 def notify_admin(alert):
-    # Placeholder: push alert to message queue / DB / websocket
-    # In production, this will call your API endpoint or push to pubsub
     print("ADMIN ALERT:", alert)
 
 def main(video_path="resources/AED Parking Video.mp4"):
     global polygons, current_polygon, slot_history
 
-    model = YOLO('yolov8s.pt')  # consider a smaller model for speed
+    model = YOLO('yolov8s.pt')  
 
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         print("Error: Unable to open video source.")
         return
 
-    # read one frame for polygon definition and scale it to TARGET_DIM
     ret, first_frame = cap.read()
     if not ret:
         print("Error: Unable to read the first frame.")
@@ -91,7 +86,6 @@ def main(video_path="resources/AED Parking Video.mp4"):
 
     cv2.destroyWindow('Define Parking Slots')
 
-    # initialize history buffers
     slot_history = [deque(maxlen=SMOOTH_WINDOW) for _ in polygons]
 
     last_refresh_ts = 0
@@ -106,11 +100,9 @@ def main(video_path="resources/AED Parking Video.mp4"):
         frame_resized = cv2.resize(frame, TARGET_DIM)
 
         now = time.time()
-        # perform detection at most every OCCUPANCY_REFRESH_INTERVAL seconds
         if now - last_refresh_ts >= OCCUPANCY_REFRESH_INTERVAL:
             last_refresh_ts = now
 
-            # Run detection on the resized frame (polygons are in resized coord space)
             results = model(frame_resized, classes=[2,7], conf=0.6, verbose=False)[0]
 
             slot_status = [False] * len(polygons)
@@ -127,7 +119,6 @@ def main(video_path="resources/AED Parking Video.mp4"):
                         slot_status[i] = True
                         break
 
-            # push to history for smoothing, then compute smoothed occupancy
             smoothed_status = []
             for i, s in enumerate(slot_status):
                 slot_history[i].append(s)
@@ -136,17 +127,11 @@ def main(video_path="resources/AED Parking Video.mp4"):
                 smoothed = true_count >= (len(slot_history[i]) // 2 + 1) if len(slot_history[i]) > 0 else s
                 smoothed_status.append(smoothed)
 
-            # If any previously-free slot becomes occupied by an unknown car,
-            # you might want to trigger ALPR or alert here.
-            # For demo we'll just print changes (in prod push to DB & websocket)
-            # Notify admin in a separate thread so we don't block main loop
-            # Example: notify_admin({'slots': smoothed_status, 'ts': now})
+            
             threading.Thread(target=notify_admin, args=({'slots': smoothed_status, 'ts': now},), daemon=True).start()
 
-            # store last detected centers for visualization
             last_detected_centers = detected_centers
 
-        # Draw visualization (use latest available smoothed_status)
         display = frame_resized.copy()
         try:
             for i, poly in enumerate(polygons):
@@ -163,7 +148,6 @@ def main(video_path="resources/AED Parking Video.mp4"):
         except Exception as e:
             pass
 
-        # draw last detected centers if present
         if 'last_detected_centers' in locals():
             for c in last_detected_centers:
                 cv2.circle(display, c, 5, (255, 0, 0), -1)

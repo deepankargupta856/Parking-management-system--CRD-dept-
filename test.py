@@ -1,4 +1,3 @@
-# corrected_parking.py
 import os
 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
     "rtsp_transport;tcp|fflags;discardcorrupt|flags;low_delay"
@@ -12,27 +11,18 @@ import time
 import threading
 from collections import deque
 
-from shared_state import slot_state  # 🔑 shared state (FIXED)
+from shared_state import slot_state  
 
 
-# =========================
-# CONFIG
-# =========================
 TARGET_DIM = (1024, 768)
 SMOOTH_WINDOW = 3
 OCCUPANCY_REFRESH_INTERVAL = 5.0
 
-# =========================
-# GLOBALS
-# =========================
 current_polygon = []
 polygons = []
 slot_history = []
 api_started = False
 
-# =========================
-# MOUSE CALLBACK
-# =========================
 def mouse_callback(event, x, y, flags, param):
     global current_polygon, polygons
 
@@ -44,11 +34,7 @@ def mouse_callback(event, x, y, flags, param):
             polygons.append(np.array(current_polygon, dtype=np.int32))
         current_polygon.clear()
 
-# =========================
-# DRAWING HELPERS
-# =========================
 def draw_polygons(frame):
-    # Draw finalized slots
     for idx, poly in enumerate(polygons):
         cv2.polylines(frame, [poly], True, (0, 255, 0), 2)
         M = cv2.moments(poly)
@@ -58,7 +44,6 @@ def draw_polygons(frame):
             cv2.putText(frame, f"Slot {idx + 1}", (cx - 20, cy),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
-    # Draw currently-being-drawn polygon
     if len(current_polygon) > 1:
         pts = np.array(current_polygon, np.int32).reshape((-1, 1, 2))
         cv2.polylines(frame, [pts], False, (0, 0, 255), 2)
@@ -66,9 +51,6 @@ def draw_polygons(frame):
 def point_in_poly(point, poly):
     return cv2.pointPolygonTest(poly, point, False) >= 0
 
-# =========================
-# MAIN
-# =========================
 def main(video_path="resources/AED Parking Video.mp4"):
     global slot_history, api_started
 
@@ -84,7 +66,6 @@ def main(video_path="resources/AED Parking Video.mp4"):
         print("Error: Unable to open video source")
         return
 
-    # ---- SLOT DEFINITION PHASE ----
     first_frame = None
     for _ in range(50):  # ~2 seconds max
         ret, frame = cap.read()
@@ -121,12 +102,10 @@ def main(video_path="resources/AED Parking Video.mp4"):
         key = cv2.waitKey(1) & 0xFF
 
         if key == ord('s'):
-            # finalize last polygon if still open
             if len(current_polygon) >= 3:
                 polygons.append(np.array(current_polygon, dtype=np.int32))
                 current_polygon.clear()
 
-            # start API AFTER slots are fixed
             if not api_started:
                 from parking_api import start_api
                 threading.Thread(target=start_api, daemon=True).start()
@@ -141,12 +120,10 @@ def main(video_path="resources/AED Parking Video.mp4"):
 
     cv2.destroyWindow("Define Parking Slots")
 
-    # ---- INIT HISTORY ----
     slot_history = [deque(maxlen=SMOOTH_WINDOW) for _ in polygons]
 
     last_refresh_ts = 0
 
-    # ---- INFERENCE LOOP ----
     while True:
         cap.grab()
             
@@ -183,14 +160,12 @@ def main(video_path="resources/AED Parking Video.mp4"):
                     sum(slot_history[i]) >= (len(slot_history[i]) // 2 + 1)
                 )
 
-            # 🔥 UPDATE SHARED STATE (FIXED)
             slot_state["timestamp"] = now
             slot_state["slots"] = [
                 {"id": i + 1, "occupied": smoothed[i]}
                 for i in range(len(smoothed))
             ]
 
-        # ---- VISUALIZATION ----
         display = frame.copy()
         for i, poly in enumerate(polygons):
             occupied = sum(slot_history[i]) >= (len(slot_history[i]) // 2 + 1)
