@@ -51,14 +51,11 @@ def draw_polygons(frame):
 def point_in_poly(point, poly):
     return cv2.pointPolygonTest(poly, point, False) >= 0
 
-def main(video_path="resources/AED Parking Video.mp4"):
+def main(video_path="resources/nie parking video.mp4"):
     global slot_history, api_started
 
     model = YOLO("yolov8s.pt")
-    cap = cv2.VideoCapture(
-        "rtsp://127.0.0.1:8554/parking",
-        cv2.CAP_FFMPEG
-    )
+    cap = cv2.VideoCapture(video_path)
     
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 

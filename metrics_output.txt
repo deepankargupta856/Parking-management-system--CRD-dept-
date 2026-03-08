@@ -1,0 +1,9 @@
+Metric	Estimated Value
+Mean Latency	~313 ms
+95th Percentile Latency	~447 ms
+State Flip Rate (window=5)	~0.26 flips/sec
+
+=== Accuracy Metrics (vs YOLOv8m Pseudo-GT) ===
+Precision:	0.9972
+Recall:	0.5215
+mAP@0.5:	0.5214
