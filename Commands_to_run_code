@@ -1,6 +1,0 @@
-cd C:\Users\deepa\Downloads\mediamtx_v1.15.6_windows_amd64
-.\mediamtx.exe
-
-ffmpeg -re -stream_loop -1 -i "resources\nie parking video.mp4" -an -c:v libx264 -preset ultrafast -g 40 -keyint_min 40 -sc_threshold 0 -f rtsp -rtsp_transport tcp rtsp://127.0.0.1:8554/parking
-
-python test.py
